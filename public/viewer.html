@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Viewer</title>
+</head>
+<body>
+    <h1>Guarda il Video in Diretta</h1>
+    <video id="remoteVideo" autoplay playsinline></video>
+    <script>
+        const videoElement = document.getElementById('remoteVideo');
+
+        // TODO: Implement WebRTC signaling to receive the stream from the server
+
+        // Placeholder for setting the remote stream
+        function setRemoteStream(stream) {
+            videoElement.srcObject = stream;
+        }
+    </script>
+</body>
+</html>
