@@ -6,17 +6,77 @@
     <title>Video Viewer</title>
 </head>
 <body>
-    <h1>Guarda il Video in Diretta</h1>
-    <video id="remoteVideo" autoplay playsinline></video>
+    <h1>Guarda il Video in Diretta (VIEWER)</h1>
+    <p id="status">Status: connecting...</p>
+    <video id="remoteVideo" autoplay playsinline controls style="width:100%;max-width:640px"></video>
+
+    <script src="/socket.io/socket.io.js"></script>
     <script>
+        const statusEl = document.getElementById('status');
         const videoElement = document.getElementById('remoteVideo');
+        const socket = io();
 
-        // TODO: Implement WebRTC signaling to receive the stream from the server
+        let pc = null;
+        let remoteStream = null;
 
-        // Placeholder for setting the remote stream
-        function setRemoteStream(stream) {
-            videoElement.srcObject = stream;
-        }
+        function setStatus(t) { statusEl.textContent = 'Status: ' + t; }
+
+        socket.on('connect', () => {
+            setStatus('connected');
+            socket.emit('register', 'viewer');
+        });
+
+        socket.on('no-streamer', () => {
+            setStatus('No streamer currently available');
+        });
+
+        socket.on('offer', async ({ from, sdp }) => {
+            setStatus('Received offer, creating answer');
+            try {
+                pc = new RTCPeerConnection();
+
+                remoteStream = new MediaStream();
+                videoElement.srcObject = remoteStream;
+
+                pc.ontrack = (event) => {
+                    event.streams[0].getTracks().forEach(track => remoteStream.addTrack(track));
+                };
+
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        socket.emit('ice-candidate', { to: from, candidate: event.candidate });
+                    }
+                };
+
+                await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+
+                // send answer back to streamer
+                socket.emit('answer', { to: from, sdp: pc.localDescription });
+                setStatus('Answer sent');
+            } catch (err) {
+                console.error('Error handling offer:', err);
+                setStatus('Error handling offer');
+            }
+        });
+
+        socket.on('ice-candidate', async ({ from, candidate }) => {
+            try {
+                if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (err) {
+                console.error('Error adding ICE candidate:', err);
+            }
+        });
+
+        socket.on('streamer-stopped', () => {
+            setStatus('Streamer stopped');
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
+            videoElement.srcObject = null;
+        });
     </script>
 </body>
 </html>
