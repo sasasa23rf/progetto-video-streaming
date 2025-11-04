@@ -8,9 +8,9 @@ const io = new Server(server);
 
 // Add Content Security Policy header to allow inline scripts during development
 app.use((req, res, next) => {
-    // Development-friendly CSP: allow self, inline scripts (unsafe-inline) and websockets.
+    // Development-friendly CSP: allow self, inline scripts (unsafe-inline), inline styles, and websockets.
     // IMPORTANT: For production tighten this policy (remove 'unsafe-inline' and use nonces/hashes).
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ws: wss: http: https:");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: http: https:");
     next();
 });
 
