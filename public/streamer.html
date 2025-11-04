@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Streamer</title>
+</head>
+<body>
+    <h1>Trasmetti Video in Diretta</h1>
+    <video id="localVideo" autoplay muted playsinline></video>
+    <script>
+        const videoElement = document.getElementById('localVideo');
+
+        async function startStreaming() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                videoElement.srcObject = stream;
+
+                // TODO: Implement WebRTC signaling to send the stream to the server
+            } catch (error) {
+                console.error('Errore nell`acquisizione del video:', error);
+            }
+        }
+
+        startStreaming();
+    </script>
+</body>
+</html>
