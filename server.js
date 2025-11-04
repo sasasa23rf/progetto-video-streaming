@@ -6,10 +6,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Add Content Security Policy header to allow WebSocket connections and page resources
+// Add Content Security Policy header to allow inline scripts during development
 app.use((req, res, next) => {
-    // allow self for scripts/styles, and allow websocket/connect to ws/wss and same origin
-    res.setHeader('Content-Security-Policy', "default-src 'self'; connect-src 'self' ws: wss: http: https:");
+    // Development-friendly CSP: allow self, inline scripts (unsafe-inline) and websockets.
+    // IMPORTANT: For production tighten this policy (remove 'unsafe-inline' and use nonces/hashes).
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ws: wss: http: https:");
     next();
 });
 
