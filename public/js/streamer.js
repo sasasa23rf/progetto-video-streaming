@@ -1,0 +1,118 @@
+// CONFIG: set SERVER_URL on the page before this script if you host pages on Vercel
+// Example (in Vercel-hosted page): <script>window.SERVER_URL = 'https://progetto-video-streaming.onrender.com'</script>
+const SIGNALING_SERVER = window.SERVER_URL || location.origin; // use render url when pages hosted elsewhere
+
+(function loadSocketIo(cb) {
+    const s = document.createElement('script');
+    s.src = SIGNALING_SERVER + '/socket.io/socket.io.js';
+    s.onload = cb;
+    s.onerror = () => console.error('Failed to load socket.io client from', s.src);
+    document.head.appendChild(s);
+})(init);
+
+function init() {
+    const statusEl = document.getElementById('status');
+    const videoElement = document.getElementById('localVideo');
+    const socket = io(SIGNALING_SERVER);
+
+    let localStream;
+    const pcs = {}; // viewerId -> RTCPeerConnection
+
+    function setStatus(text) { statusEl.textContent = 'Status: ' + text; }
+
+    socket.on('connect', () => {
+        setStatus('connected to signaling server (' + SIGNALING_SERVER + ')');
+        socket.emit('register', 'streamer');
+    });
+
+    socket.on('streamer-accepted', () => {
+        setStatus('registered as streamer');
+    });
+
+    socket.on('streamer-rejected', (msg) => {
+        setStatus('rejected as streamer: ' + msg);
+        alert('Cannot start streaming: ' + msg);
+    });
+
+    socket.on('viewer-joined', async ({ viewerId }) => {
+        console.log('Viewer joined:', viewerId);
+        setStatus('viewer joined: ' + viewerId);
+        await createPeerForViewer(viewerId);
+    });
+
+    socket.on('viewer-left', ({ viewerId }) => {
+        console.log('Viewer left:', viewerId);
+        setStatus('viewer left: ' + viewerId);
+        if (pcs[viewerId]) {
+            pcs[viewerId].close();
+            delete pcs[viewerId];
+        }
+    });
+
+    socket.on('answer', async ({ from, sdp }) => {
+        console.log('Received answer from', from);
+        const pc = pcs[from];
+        if (!pc) return console.warn('No pc for', from);
+        try {
+            await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        } catch (err) {
+            console.error('Error setting remote description on streamer:', err);
+        }
+    });
+
+    socket.on('ice-candidate', async ({ from, candidate }) => {
+        const pc = pcs[from];
+        if (!pc) return;
+        try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+            console.error('Error adding ICE candidate on streamer:', err);
+        }
+    });
+
+    socket.on('streamer-stopped', () => {
+        setStatus('streamer stopped (server)');
+    });
+
+    async function createPeerForViewer(viewerId) {
+        if (!localStream) {
+            console.warn('No local stream yet');
+            return;
+        }
+        const pc = new RTCPeerConnection();
+
+        // add local tracks
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+        // send ICE candidates to target viewer
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('ice-candidate', { to: viewerId, candidate: event.candidate });
+            }
+        };
+
+        pcs[viewerId] = pc;
+
+        try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            // send offer to specific viewer
+            socket.emit('offer', { to: viewerId, sdp: pc.localDescription });
+        } catch (err) {
+            console.error('Error creating/sending offer to viewer:', err);
+        }
+    }
+
+    async function startStreaming() {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            videoElement.srcObject = localStream;
+            setStatus('camera started');
+        } catch (error) {
+            console.error('Errore nell`acquisizione del video:', error);
+            setStatus('camera error');
+        }
+    }
+
+    startStreaming();
+}
